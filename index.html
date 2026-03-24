@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+<title>بنك البسيري | نظام تحليل أخطاء POS الذكي</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://unpkg.com/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+
+<!-- ✅ Supabase SDK v2 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+    :root {
+        --bg-gradient-start: #0b2b5c; --bg-gradient-mid: #123e7c; --bg-gradient-end: #1b4d8c;
+        --card-bg: rgba(15, 35, 65, 0.7); --text-gold: #FFE2A4; --text-gold-dark: #FFD966;
+        --text-gold-bright: #FFF2D7; --input-bg: rgba(255,255,255,0.95); --input-color: #0a2f44;
+        --border-light: rgba(255,255,255,0.2); --btn-primary-bg: linear-gradient(95deg,#F6B93D,#FF8C42);
+        --btn-primary-color: #1e2f47; --algorithm-bg: rgba(0,0,0,0.4); --user-card-bg: rgba(10,25,55,0.75);
+        --footer-color: #cfdfed; --dropdown-bg: rgba(15,35,65,0.9);
+        --toast-success: #2ecc71; --toast-error: #e74c3c; --toast-warning: #f39c12;
+    }
+    body.dark {
+        --bg-gradient-start: #121212; --bg-gradient-mid: #1e1e2f; --bg-gradient-end: #2a2a3a;
+        --card-bg: rgba(20,20,35,0.85); --text-gold: #FFD966; --text-gold-dark: #FFC107;
+        --input-bg: rgba(50,50,70,0.95); --input-color: #f0f0f0; --border-light: rgba(255,215,130,0.3);
+        --btn-primary-bg: linear-gradient(95deg,#FFB347,#FF8C42); --btn-primary-color: #ffffff;
+        --algorithm-bg: rgba(0,0,0,0.6); --user-card-bg: rgba(30,30,50,0.85); --footer-color: #a0a0b0;
+        --dropdown-bg: rgba(30,30,50,0.95);
+    }
+    body {
+        min-height: 100vh;
+        background: linear-gradient(145deg, var(--bg-gradient-start) 0%, var(--bg-gradient-mid) 50%, var(--bg-gradient-end) 100%);
+        display: flex; align-items: center; justify-content: center; padding: 1rem;
+        transition: background 0.3s ease; color: var(--text-gold);
+        overflow-x: hidden;
+    }
+    
+    @keyframes pulse-gold { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 217, 102, 0.4); } 50% { box-shadow: 0 0 0 12px rgba(255, 217, 102, 0); } }
+    @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .glass-card {
+        background: var(--card-bg); backdrop-filter: blur(14px); border-radius: 2rem;
+        width: 100%; max-width: 720px; padding: 1.5rem;
+        box-shadow: 0 25px 45px rgba(0,0,0,0.3); border: 1px solid var(--border-light);
+        animation: slide-up 0.4s ease;    }
+    .brand { text-align: center; margin-bottom: 1.2rem; position: relative; }
+    .brand i { font-size: 2.5rem; background: linear-gradient(135deg,var(--text-gold-bright),var(--text-gold-dark)); -webkit-background-clip: text; background-clip: text; color: transparent; animation: pulse-gold 3s infinite; }
+    .brand h2 { font-size: 1.6rem; font-weight: 800; background: linear-gradient(to left,var(--text-gold-bright),var(--text-gold-dark)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .welcome-badge { display: inline-block; background: linear-gradient(135deg, rgba(255,217,102,0.2), rgba(255,140,66,0.2)); padding: 0.3rem 1rem; border-radius: 2rem; font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem; border: 1px solid var(--text-gold-dark); }
+    .theme-toggle { position: absolute; top: 0.5rem; left: 0.5rem; background: rgba(0,0,0,0.4); border: none; border-radius: 2rem; padding: 0.4rem 0.8rem; color: var(--text-gold-dark); cursor: pointer; font-size: 0.8rem; z-index: 10; transition: all 0.2s ease; }
+    .theme-toggle:hover { background: rgba(0,0,0,0.6); transform: scale(1.05); }
+    .input-field, select, textarea { width: 100%; padding: 0.8rem; margin: 0.5rem 0; border: none; border-radius: 2rem; background: var(--input-bg); color: var(--input-color); font-size: 1rem; text-align: center; transition: 0.2s; }
+    .input-field:focus, select:focus, textarea:focus { outline: none; transform: scale(0.98); box-shadow: 0 0 0 2px var(--text-gold-dark); }
+    .btn-primary, .btn-secondary, .small-btn { border: none; border-radius: 2rem; padding: 0.8rem; font-weight: bold; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-color); width: 100%; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(255,140,66,0.4); }
+    .btn-secondary { background: rgba(255,255,240,0.18); border: 1px solid var(--text-gold-dark); color: var(--text-gold); width: 100%; }
+    .btn-secondary:hover { background: rgba(255,255,240,0.28); }
+    .small-btn { background: #FFB347; color: #1e2f47; padding: 0.5rem 1rem; }
+    .small-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 15px rgba(255,179,71,0.4); }
+    .navbar-dropdown { margin: 1rem 0; position: relative; width: 100%; }
+    .dropdown-select { width: 100%; padding: 0.8rem 1rem; background: var(--dropdown-bg); border: 1px solid var(--text-gold-dark); border-radius: 2rem; color: var(--text-gold); font-size: 1rem; font-weight: 600; cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23FFD966' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>"); background-repeat: no-repeat; background-position: left 1rem center; background-size: 1rem; text-align: center; }
+    .tab-content { display: none; animation: fade 0.3s ease; margin-top: 0.5rem; }
+    .tab-content.active { display: block; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .user-card, .log-entry, .error-card { background: var(--user-card-bg); border-radius: 1rem; padding: 0.7rem; margin-bottom: 0.6rem; display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 8px; border-right: 3px solid var(--text-gold-dark); color: var(--text-gold); transition: all 0.2s ease; cursor: pointer; animation: slide-up 0.3s ease; }
+    .user-card:hover, .error-card:hover { transform: translateX(-5px); box-shadow: 0 8px 25px rgba(255, 217, 102, 0.2); }
+    .algorithm-box { background: var(--algorithm-bg); border-radius: 1.5rem; padding: 1.2rem; margin: 1rem 0; text-align: center; border: 1px solid var(--text-gold-dark); position: relative; overflow: hidden; }
+    .algorithm-box::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,217,102,0.1), transparent); animation: shimmer 3s infinite; }
+    .result-number { font-size: 2.5rem; font-weight: 800; letter-spacing: 4px; background: linear-gradient(130deg, var(--text-gold-bright), var(--text-gold-dark)); -webkit-background-clip: text; background-clip: text; color: transparent; direction: ltr; margin: 0.5rem 0; text-shadow: 0 0 20px rgba(255,217,102,0.3); }
+    .copy-btn { background: #2c7a47; color: white; border: none; border-radius: 2rem; padding: 0.4rem 1.2rem; margin-top: 0.5rem; cursor: pointer; transition: all 0.2s; }
+    .copy-btn:hover { background: #27ae60; transform: translateY(-2px); }
+    .flex-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: center; }
+    .grid-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.8rem; align-items: end; margin: 1rem 0; }
+    .grid-form .input-field { margin: 0; }
+    .grid-full { grid-column: span 3; }
+    .hidden { display: none !important; }
+    .footer-note { text-align: center; font-size: 0.7rem; margin-top: 1rem; color: var(--footer-color); opacity: 0.8; }
+    
+    @media (max-width: 600px) {
+        .glass-card { padding: 1rem; border-radius: 1.5rem; }
+        .grid-form { grid-template-columns: 1fr; gap: 0.5rem; }
+        .grid-full { grid-column: span 1; }
+        .result-number { font-size: 2rem; letter-spacing: 2px; }
+        .brand h2 { font-size: 1.4rem; }
+        .brand i { font-size: 2rem; }
+    }
+    
+    .camera-container { position: relative; border-radius: 1.5rem; overflow: hidden; border: 2px solid var(--text-gold-dark); background: #000; margin: 0.5rem 0; }
+    .camera-preview { width: 100%; border-radius: 1rem; margin: 0.5rem 0; background: #000; display: block; }
+    .camera-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 65%; border: 3px dashed rgba(255, 217, 102, 0.7); border-radius: 1rem; pointer-events: none; animation: pulse-gold 2.5s infinite; box-shadow: 0 0 30px rgba(255, 217, 102, 0.2); }
+    .camera-overlay::after { content: '📄 ضع المستند داخل الإطار'; position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%); font-size: 0.75rem; color: var(--text-gold); background: rgba(0,0,0,0.6); padding: 0.3rem 0.8rem; border-radius: 1rem; white-space: nowrap; }
+    .captured-img { max-width: 100%; border-radius: 1rem; margin-top: 0.5rem; border: 2px solid var(--text-gold-dark); animation: slide-up 0.3s ease; }
+        .toast-container { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 10000; display: flex; flex-direction: column; gap: 0.5rem; max-width: 90%; pointer-events: none; }
+    .toast { background: rgba(20, 40, 70, 0.98); color: var(--text-gold); padding: 0.9rem 1.3rem; border-radius: 1.2rem; border-right: 4px solid var(--text-gold-dark); display: flex; align-items: center; gap: 0.9rem; animation: slide-up 0.3s ease; box-shadow: 0 10px 40px rgba(0,0,0,0.4); backdrop-filter: blur(12px); pointer-events: auto; max-width: 100%; }
+    .toast.success { border-right-color: var(--toast-success); }
+    .toast.error { border-right-color: var(--toast-error); }
+    .toast.warning { border-right-color: var(--toast-warning); }
+    .toast i { font-size: 1.2rem; }
+    
+    .ai-result-box { background: linear-gradient(135deg, rgba(255,217,102,0.12), rgba(255,140,66,0.12)); border: 1px solid var(--text-gold-dark); border-radius: 1.5rem; padding: 1.2rem; margin-top: 1rem; position: relative; overflow: hidden; animation: slide-up 0.4s ease; }
+    .ai-result-box::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,217,102,0.25), transparent); animation: shimmer 2.5s infinite; }
+    
+    .error-severity { display: inline-flex; align-items: center; gap: 4px; padding: 0.25rem 0.7rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 700; }
+    .severity-high { background: rgba(231, 76, 60, 0.25); color: #ff7675; border: 1px solid rgba(231,76,60,0.4); }
+    .severity-medium { background: rgba(243, 156, 18, 0.25); color: #fdcb6e; border: 1px solid rgba(243,156,18,0.4); }
+    .severity-low { background: rgba(46, 204, 113, 0.25); color: #55efc4; border: 1px solid rgba(46,204,113,0.4); }
+    
+    .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,217,102,0.3); border-radius: 50%; border-top-color: var(--text-gold-dark); animation: spin 1s linear infinite; margin-left: 0.5rem; vertical-align: middle; }
+    .ocr-status { font-size: 0.85rem; color: var(--text-gold); margin: 0.8rem 0; display: flex; align-items: center; gap: 6px; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 1rem; }
+    .section-title { font-weight: 700; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 8px; color: var(--text-gold); font-size: 1.1rem; }
+    .section-title i { color: var(--text-gold-dark); }
+    .solution-box { background: rgba(0,0,0,0.35); border-radius: 1rem; padding: 0.9rem; margin-top: 1rem; border-right: 3px solid #2c7a47; animation: slide-up 0.3s ease; }
+    
+    #progressOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 5000; backdrop-filter: blur(8px); }
+    #progressOverlay .progress-card { background: var(--card-bg); padding: 1.8rem; border-radius: 1.8rem; border: 1px solid var(--text-gold-dark); text-align: center; min-width: 280px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+    #progressOverlay .spinner-lg { width: 50px; height: 50px; border-width: 4px; margin: 0 auto 1.2rem; }
+    #progressBar { height: 100%; background: var(--btn-primary-bg); width: 0%; transition: width 0.4s ease; border-radius: 1rem; }
+    
+    .algorithm-label { font-size: 0.9rem; color: var(--footer-color); margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .algorithm-sub { margin-top: 12px; font-size: 0.75rem; color: var(--footer-color); background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 0.8rem; }
+    .upload-label { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.15); border: 1px dashed var(--text-gold-dark); padding: 0.6rem 1.2rem; border-radius: 2rem; cursor: pointer; transition: all 0.2s; font-size: 0.9rem; }
+    .upload-label:hover { background: rgba(255,255,255,0.25); transform: translateY(-2px); }
+    .upload-label input { display: none; }
+    .divider { text-align: center; color: var(--footer-color); font-size: 0.85rem; margin: 0.8rem 0; position: relative; }
+    .divider::before, .divider::after { content: ''; position: absolute; top: 50%; width: 35%; height: 1px; background: var(--border-light); }
+    .divider::before { right: 0; }
+    .divider::after { left: 0; }
+    
+    /* حالة الاتصال بـ Supabase */
+    .connection-status {
+        position: fixed; top: 1rem; right: 1rem;
+        padding: 0.4rem 0.8rem; border-radius: 1rem;
+        font-size: 0.75rem; display: flex; align-items: center; gap: 6px;
+        background: rgba(0,0,0,0.5); z-index: 1000;
+    }
+    .connection-status.connected { color: #2ecc71; }
+    .connection-status.disconnected { color: #e74c3c; }
+    .connection-status.connecting { color: #f39c12; }
+</style>
+</head>
+<body>
+<!-- حالة الاتصال -->
+<div class="connection-status connecting" id="connStatus">
+    <i class="fas fa-spinner fa-spin"></i> جاري الاتصال...
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<div class="glass-card" id="loginBox">
+    <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i> الوضع</button>
+    <div class="brand">
+        <i class="fas fa-landmark"></i>
+        <h2>بنك البسيري الدولي</h2>
+        <p style="color:var(--footer-color);font-size:0.9rem;">نظام تحليل أخطاء POS الذكي ✨ <span style="color:#00b4d8;">Supabase</span></p>
+    </div>
+    <input type="text" id="loginUsername" class="input-field" placeholder="👤 اسم المستخدم">
+    <input type="password" id="loginPassword" class="input-field" placeholder="🔐 كلمة المرور">
+    <button class="btn-primary" onclick="login()">
+        <i class="fas fa-sign-in-alt"></i> دخول آمن
+    </button>
+    <div class="footer-note">© 2026 بنك البسيري الدولي - جميع الحقوق محفوظة | جاسم عميران</div>
+</div>
+
+<div class="glass-card hidden" id="appBox">
+    <button class="theme-toggle" id="themeToggleApp"><i class="fas fa-moon"></i> الوضع</button>
+    <div class="brand">
+        <i class="fas fa-chart-line"></i>
+        <h2 id="appTitle">بسيري Pay</h2>
+        <div class="welcome-badge" id="userRoleBadge"></div>
+    </div>
+
+    <div class="navbar-dropdown" id="navbarDropdownContainer" style="display: none;">
+        <select id="navSelect" class="dropdown-select"></select>
+    </div>
+
+    <div id="tabAlgorithm" class="tab-content">
+        <div class="algorithm-box">
+            <div class="algorithm-label"><i class="fas fa-shield-alt"></i> رمز التحقق الآمن</div>
+            <div class="result-number" id="output">----</div>
+            <button id="copyCodeBtn" class="copy-btn" onclick="copyCode()">
+                <i class="fas fa-copy"></i> نسخ الرمز
+            </button>
+            <div class="algorithm-sub">
+                <i class="fas fa-key"></i> كلمة السر لدخول نظام الإعدادات: <strong style="color:var(--text-gold-bright);">00028510</strong>
+            </div>
+        </div>
+    </div>
+
+    <div id="tabChangePass" class="tab-content">
+        <div style="background: rgba(0,0,0,0.3); border-radius:1.5rem; padding:1rem;">
+            <div class="section-title"><i class="fas fa-key"></i> تغيير كلمة المرور</div>            <input type="password" id="oldPass" class="input-field" placeholder="🔒 كلمة المرور الحالية">
+            <input type="password" id="newPass" class="input-field" placeholder="🔑 كلمة المرور الجديدة">
+            <button class="small-btn" style="width:100%;" onclick="changePassword()">
+                <i class="fas fa-sync-alt"></i> تحديث كلمة المرور
+            </button>
+        </div>
+    </div>
+
+    <div id="tabUsers" class="tab-content">
+        <div class="section-title"><i class="fas fa-users"></i> إدارة المستخدمين</div>
+        <div id="usersDiv" style="max-height: 250px; overflow-y: auto;"></div>
+        <div id="addUserForm" class="hidden" style="margin-top:1rem;">
+            <div class="grid-form">
+                <input type="text" id="newUserName" class="input-field" placeholder="اسم المستخدم">
+                <select id="newUserRole" class="input-field">
+                    <option value="user">👤 مستخدم</option>
+                    <option value="cashier">🛒 كاشير</option>
+                    <option value="admin">👑 مدير</option>
+                </select>
+                <input type="password" id="newUserPass" class="input-field" placeholder="كلمة المرور">
+                <button class="small-btn grid-full" onclick="addUser()">
+                    <i class="fas fa-user-plus"></i> إضافة مستخدم جديد
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="tabLogs" class="tab-content">
+        <div class="section-title">
+            <i class="fas fa-history"></i> سجل العمليات 
+            <button class="small-btn" style="padding:0.2rem 0.8rem;font-size:0.8rem;" onclick="clearLogs()">
+                <i class="fas fa-trash"></i> مسح
+            </button>
+        </div>
+        <div id="logsDiv" style="max-height: 250px; overflow-y: auto;"></div>
+    </div>
+
+    <div id="tabCashierPerms" class="tab-content">
+        <div class="section-title"><i class="fas fa-user-tag"></i> صلاحيات الكاشير</div>
+        <div id="cashierPermissionsPanel" style="background: rgba(0,0,0,0.3); border-radius:1.5rem; padding:1rem;">
+            <div id="cashiersList"></div>
+        </div>
+    </div>
+
+    <div id="tabErrors" class="tab-content">
+        <div class="section-title"><i class="fas fa-bug"></i> إدارة الأخطاء والردود</div>
+        <div id="errorsList" style="max-height: 200px; overflow-y: auto; margin-bottom:1rem;"></div>
+        <div id="addErrorForm" class="hidden">
+            <input type="text" id="errorProblem" class="input-field" placeholder="وصف المشكلة (مثال: Insufficient funds)">
+            <textarea id="errorSolution" class="input-field" rows="2" placeholder="💡 الرد الصحيح (مثال: لا يوجد رصيد كافٍ لدى العميل)"></textarea>            <button class="small-btn" onclick="addError()">
+                <i class="fas fa-plus-circle"></i> إضافة خطأ جديد
+            </button>
+        </div>
+    </div>
+
+    <div id="tabCamera" class="tab-content">
+        <div class="section-title"><i class="fas fa-camera"></i> تصوير الإشعار وتحليل المستند بالذكاء الاصطناعي</div>
+        
+        <div class="camera-container">
+            <video id="video" autoplay playsinline class="camera-preview"></video>
+            <div class="camera-overlay"></div>
+        </div>
+        
+        <div class="flex-row">
+            <button class="small-btn" id="captureBtn" onclick="capturePhoto()">
+                <i class="fas fa-camera"></i> 📸 تصوير
+            </button>
+            <button class="small-btn" id="switchCamBtn" onclick="switchCamera()">
+                <i class="fas fa-sync-alt"></i> تبديل
+            </button>
+        </div>
+        
+        <canvas id="canvas" style="display:none;"></canvas>
+        <img id="capturedImage" class="captured-img hidden" alt="الصورة الملتقطة">
+        
+        <div class="divider">أو</div>
+        
+        <div style="text-align:center;">
+            <label class="upload-label">
+                <i class="fas fa-image"></i> 📁 رفع صورة من الجهاز
+                <input type="file" id="imageUpload" accept="image/*" onchange="handleImageUpload(event)">
+            </label>
+        </div>
+        
+        <div id="analysisArea" class="hidden" style="margin-top:1rem;">
+            <div class="ocr-status" id="ocrStatus"></div>
+            <div id="analysisResult" class="ai-result-box hidden"></div>
+        </div>
+    </div>
+
+    <button class="btn-secondary" onclick="logout()">
+        <i class="fas fa-power-off"></i> تسجيل الخروج الآمن
+    </button>
+    <div class="footer-note">© 2026 بنك البسيري الدولي - جميع الحقوق محفوظة | جاسم عميران</div>
+</div>
+
+<div id="progressOverlay">
+    <div class="progress-card">
+        <div class="loading-spinner spinner-lg"></div>        <div id="progressMessage" style="margin-bottom:1rem;color:var(--text-gold);font-weight:600;"></div>
+        <div style="background:rgba(255,255,255,0.15);border-radius:1rem;overflow:hidden;height:10px;">
+            <div id="progressBar"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==================== ⚙️ إعدادات Supabase ====================
+    const SUPABASE_URL = 'https://ochnsppkbaqnjusacnzq.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jaG5zcHBrYmFxbmp1c2FjbnpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTg5NTQsImV4cCI6MjA4OTg5NDk1NH0.TrEtjR8rPzT_nS-1bTg0rLHQO5YgizsolZ4KJ_9kHEI';
+    
+    // تهيئة Supabase
+    let supabase, isSupabaseReady = false;
+    
+    try {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('✅ Supabase client created');
+    } catch (e) {
+        console.error('❌ Supabase init error:', e);
+    }
+
+    // ==================== المتغيرات العامة ====================
+    let currentUser = null;
+    let currentStream = null;
+    let currentCamera = 'environment';
+    const THEME_KEY = 'busairi_theme';
+
+    // ==================== 🔌 اختبار الاتصال بـ Supabase ====================
+    async function testSupabaseConnection() {
+        const statusEl = document.getElementById('connStatus');
+        
+        try {
+            // اختبار بسيط: محاولة جلب مستخدم واحد
+            const { data, error } = await supabase
+                .from('users')
+                .select('id')
+                .limit(1);
+            
+            if (error) {
+                // إذا كان الخطأ بسبب عدم وجود الجدول، نعتبره "متصل لكن يحتاج إعداد"
+                if (error.code === '42P01') {
+                    statusEl.className = 'connection-status connecting';
+                    statusEl.innerHTML = '<i class="fas fa-database"></i> متصل - يحتاج جداول';
+                    console.log('⚠️ Database tables not found - run SQL setup');
+                    return 'needs_setup';
+                }
+                throw error;
+            }
+                        isSupabaseReady = true;
+            statusEl.className = 'connection-status connected';
+            statusEl.innerHTML = '<i class="fas fa-check-circle"></i> متصل ✅';
+            console.log('✅ Supabase connected successfully');
+            return 'connected';
+            
+        } catch (e) {
+            console.error('❌ Connection error:', e);
+            statusEl.className = 'connection-status disconnected';
+            statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> فشل الاتصال';
+            showToast('⚠️ تأكد من إعدادات Supabase', 'warning');
+            return 'disconnected';
+        }
+    }
+
+    // ==================== نظام الإشعارات ====================
+    function showToast(message, type = 'info', duration = 3500) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;        
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+        toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${message}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    // ==================== شريط التقدم ====================
+    let progressInstance = null;
+    function showProgress(message, progress = 0) {
+        const overlay = document.getElementById('progressOverlay');
+        if (!overlay) return { update: ()=>{}, hide: ()=>{} };
+        if (!progressInstance) {
+            progressInstance = {
+                update: (msg, prog) => {
+                    const msgEl = document.getElementById('progressMessage');
+                    const barEl = document.getElementById('progressBar');
+                    if (msg && msgEl) msgEl.textContent = msg;
+                    if (prog !== undefined && barEl) barEl.style.width = `${Math.min(100, Math.max(0, prog))}%`;
+                },
+                hide: () => { if (overlay) overlay.style.display = 'none'; }
+            };
+        }
+        const msgEl = document.getElementById('progressMessage');
+        const barEl = document.getElementById('progressBar');
+        if (msgEl) msgEl.textContent = message;        if (barEl) barEl.style.width = `${progress}%`;
+        if (overlay) overlay.style.display = 'flex';
+        return progressInstance;
+    }
+
+    // ==================== 🗄️ دوال قاعدة البيانات (Supabase) ====================
+    
+    // جلب المستخدمين
+    async function getUsers() {
+        if (!isSupabaseReady) return [];
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) {
+                console.error('Error fetching users:', error);
+                return [];
+            }
+            return data || [];
+        } catch(e) { console.error(e); return []; }
+    }
+
+    // حفظ/تحديث المستخدمين
+    async function saveUser(userData, isUpdate = false) {
+        if (!isSupabaseReady) return null;
+        try {
+            if (isUpdate) {
+                const { data, error } = await supabase
+                    .from('users')
+                    .update(userData)
+                    .eq('username', userData.username)
+                    .select();
+                if (error) throw error;
+                return data?.[0];
+            } else {
+                const { data, error } = await supabase
+                    .from('users')
+                    .insert([userData])
+                    .select();
+                if (error) throw error;
+                return data?.[0];
+            }
+        } catch(e) { console.error('Error saving user:', e); return null; }
+    }
+
+    // إضافة سجل
+    async function addLog(action, details) {
+        if (!isSupabaseReady) return;        try {
+            await supabase.from('logs').insert([{
+                action,
+                details,
+                user_id: currentUser?.id || null,
+                created_at: new Date().toISOString()
+            }]);
+            if (document.getElementById("tabLogs")?.classList.contains("active")) renderLogs();
+        } catch(e) { console.error('Error adding log:', e); }
+    }
+
+    // جلب السجلات
+    async function getLogs() {
+        if (!isSupabaseReady) return [];
+        try {
+            const { data, error } = await supabase
+                .from('logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(50);
+            if (error) throw error;
+            return data || [];
+        } catch(e) { console.error(e); return []; }
+    }
+
+    // مسح السجلات
+    async function clearLogs() {
+        if (!isSupabaseReady) return;
+        try {
+            await supabase.from('logs').delete().neq('id', 0); // حذف الكل
+            await addLog("🗑️ مسح السجل", "تم حذف جميع السجلات");
+            renderLogs();
+            showToast("✅ تم مسح السجل بنجاح", "success");
+        } catch(e) { console.error(e); showToast("❌ فشل المسح", "error"); }
+    }
+
+    // جلب الصلاحيات
+    async function getPermissions() {
+        if (!isSupabaseReady) return {};
+        try {
+            const { data, error } = await supabase.from('permissions').select('*');
+            if (error) throw error;
+            // تحويل المصفوفة إلى كائن
+            const perms = {};
+            (data || []).forEach(p => { perms[p.username] = p; });
+            return perms;
+        } catch(e) { console.error(e); return {}; }
+    }
+
+    // حفظ الصلاحيات    async function savePermissions(username, perms) {
+        if (!isSupabaseReady) return;
+        try {
+            // التحقق إذا موجود للتحديث أو الإضافة
+            const { data: existing } = await supabase
+                .from('permissions')
+                .select('id')
+                .eq('username', username)
+                .single();
+            
+            if (existing?.id) {
+                await supabase.from('permissions').update(perms).eq('id', existing.id);
+            } else {
+                await supabase.from('permissions').insert([{ username, ...perms }]);
+            }
+        } catch(e) { console.error('Error saving permissions:', e); }
+    }
+
+    // جلب الأخطاء
+    async function getErrors() {
+        if (!isSupabaseReady) return [];
+        try {
+            const { data, error } = await supabase
+                .from('errors')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        } catch(e) { console.error(e); return []; }
+    }
+
+    // حفظ الأخطاء
+    async function saveErrors(errors) {
+        if (!isSupabaseReady) return;
+        // Supabase: كل خطأ سجل منفصل
+        for (const err of errors) {
+            const { error } = await supabase
+                .from('errors')
+                .upsert({ 
+                    id: err.id, 
+                    problem: err.problem, 
+                    solution: err.solution, 
+                    severity: err.severity || 'medium',
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
+            if (error) console.error('Error saving error:', error);
+        }
+    }
+
+    // ==================== بيانات الأخطاء الافتراضية ====================    const POS_ERRORS = [
+        { id: '1', problem: "Insufficient funds", solution: "لا يوجد رصيد كافٍ لدى العميل، يرجى إعلامه بتعبئة الرصيد", severity: "medium" },
+        { id: '2', problem: "Card declined", solution: "البطاقة مرفوضة من البنك المصدر، يُرجى استخدام بطاقة أخرى", severity: "high" },
+        { id: '3', problem: "Invalid PIN", solution: "الرقم السري غير صحيح، اطلب من العميل إعادة المحاولة أو تغيير الرقم السري", severity: "low" },
+        { id: '4', problem: "Expired card", solution: "البطاقة منتهية الصلاحية، اطلب من العميل استخدام بطاقة سارية", severity: "medium" },
+        { id: '5', problem: "Card not supported", solution: "نوع البطاقة غير مدعوم في هذا الجهاز، جرب بطاقة أخرى", severity: "medium" },
+        { id: '6', problem: "Transaction timeout", solution: "انتهت مهلة العملية، أعد المحاولة بعد قليل", severity: "low" },
+        { id: '7', problem: "Connection error", solution: "خطأ في الاتصال بالشبكة، تحقق من اتصال الجهاز بالإنترنت", severity: "medium" },
+        { id: '8', problem: "Amount exceeds limit", solution: "المبلغ المطلوب يتجاوز الحد الأقصى المسموح به للعملية الواحدة", severity: "high" },
+        { id: '9', problem: "Daily limit exceeded", solution: "تم تجاوز الحد اليومي للعمليات، سيتم إعادة تعيين الحد غداً", severity: "medium" },
+        { id: '10', problem: "Fraud detected", solution: "تم اكتشاف نشاط احتيالي، يرجى الاتصال بالدعم الفني فوراً", severity: "high" },
+        { id: '11', problem: "Technical error", solution: "خطأ تقني في النظام، أعد تشغيل الجهاز أو اتصل بالدعم", severity: "medium" },
+        { id: '12', problem: "Card not inserted", solution: "لم يتم إدخال البطاقة بشكل صحيح، أعد إدخالها ببطء", severity: "low" },
+        { id: '13', problem: "PIN tries exceeded", solution: "تم تجاوز عدد المحاولات المسموحة، البطاقة محظورة مؤقتاً", severity: "high" },
+        { id: '14', problem: "Invalid card", solution: "البطاقة غير صالحة أو تالفة، اطلب بطاقة بديلة", severity: "medium" },
+        { id: '15', problem: "Merchant error", solution: "خطأ في إعدادات التاجر، تواصل مع الدعم الفني", severity: "high" },
+        { id: '16', problem: "Declined by issuer", solution: "البنك المصدر رفض العملية، يرجى الاتصال بالبنك للاستفسار", severity: "high" }
+    ];
+
+    // ==================== تهيئة البيانات الأولية ====================
+    async function initSupabaseData() {
+        if (!isSupabaseReady) return;
+        
+        try {
+            // تهيئة المستخدمين
+            let users = await getUsers();
+            if (users.length === 0) {
+                const defaultUsers = [
+                    { username: "admin", password: "admin123", role: "admin", created_at: new Date().toISOString() },
+                    { username: "cashier1", password: "1234", role: "cashier", created_at: new Date().toISOString() },
+                    { username: "user1", password: "1234", role: "user", created_at: new Date().toISOString() }
+                ];
+                for (const u of defaultUsers) {
+                    await saveUser(u);
+                }
+                showToast("🎉 تم إنشاء الحسابات الافتراضية", "success");
+            }
+            
+            // تهيئة الأخطاء
+            let errors = await getErrors();
+            if (errors.length === 0) {
+                await saveErrors(POS_ERRORS);
+            }
+            
+            // تهيئة صلاحيات الكاشير
+            let perms = await getPermissions();
+            if (!perms['cashier1']) {
+                await savePermissions('cashier1', { 
+                    can_use_camera: true, 
+                    show_algo: true,                    can_view_logs: false,
+                    can_manage_errors: false
+                });
+            }
+        } catch(e) { console.error("Error initializing data:", e); }
+    }
+
+    // ==================== دوال الدخول والخروج ====================
+    async function login() {
+        const username = document.getElementById("loginUsername").value.trim();
+        const password = document.getElementById("loginPassword").value;
+        if (!username) { showToast("⚠️ أدخل اسم المستخدم", "warning"); return; }
+        
+        const progress = showProgress("🔐 جاري التحقق...", 30);
+        
+        let users = await getUsers();
+        let user = users.find(u => u.username === username);
+        
+        if (!user) {
+            // إنشاء مستخدم جديد
+            user = await saveUser({
+                username,
+                password,
+                role: 'user',
+                created_at: new Date().toISOString()
+            });
+            if (user) {
+                await addLog("🆕 مستخدم جديد", `تم إنشاء ${username} بكلمة مرور افتراضية`);
+                showToast(`✅ تم إنشاء حساب ${username}`, "success");
+            }
+        }
+        
+        if (!user || user.password !== password) {
+            await addLog("❌ محاولة دخول فاشلة", `${username} - كلمة مرور خاطئة`);
+            progress.hide();
+            showToast("❌ كلمة المرور غير صحيحة", "error");
+            return;
+        }
+        
+        progress.update("✅ جاري تحميل النظام...", 80);
+        
+        // تحديث آخر دخول
+        await saveUser({ username, last_login: new Date().toISOString() }, true);
+        await addLog("✅ دخول ناجح", `${username} (${user.role})`);
+        
+        sessionStorage.setItem("currentUser", JSON.stringify(user));
+        progress.hide();
+        showToast(`🎉 أهلاً بك، ${username}!`, "success");
+        showApp(user);
+    }
+    async function showApp(user) {
+        currentUser = user;
+        document.getElementById("loginBox").classList.add("hidden");
+        document.getElementById("appBox").classList.remove("hidden");
+
+        const titles = {
+            admin: { icon: 'fa-crown', text: 'لوحة المدير', badge: '👑 مدير النظام' },
+            cashier: { icon: 'fa-cash-register', text: 'نظام الكاشير', badge: '🛒 كاشير' },
+            user: { icon: 'fa-qrcode', text: 'نظام نقاط البيع', badge: '👤 مستخدم' }
+        };
+        const t = titles[user.role] || titles.user;
+        document.getElementById("appTitle").innerHTML = `<i class="fas ${t.icon}"></i> ${t.text}`;
+        document.getElementById("userRoleBadge").textContent = t.badge;
+
+        let availableTabs = [
+            { id: "tabAlgorithm", name: "🔐 رمز التحقق", icon: "fas fa-shield-alt" },
+            { id: "tabChangePass", name: "🔑 تغيير كلمة السر", icon: "fas fa-key" }
+        ];
+
+        if (user.role === "admin") {
+            availableTabs.push(
+                { id: "tabUsers", name: "👥 المستخدمين", icon: "fas fa-users" },
+                { id: "tabLogs", name: "📜 السجل", icon: "fas fa-history" },
+                { id: "tabCashierPerms", name: "⚙️ صلاحيات الكاشير", icon: "fas fa-user-tag" },
+                { id: "tabErrors", name: "🐛 الأخطاء والردود", icon: "fas fa-bug" },
+                { id: "tabCamera", name: "📷 الكاميرا الذكية", icon: "fas fa-camera" }
+            );
+        } else if (user.role === "cashier") {
+            const perms = await getPermissions();
+            const userPerms = perms[user.username] || { show_algo: true };
+            if (userPerms.can_use_camera) {
+                availableTabs.push({ id: "tabCamera", name: "📷 تحليل المستندات", icon: "fas fa-camera" });
+            }
+        }
+
+        const navSelect = document.getElementById("navSelect");
+        navSelect.innerHTML = "";
+        availableTabs.forEach(tab => {
+            const option = document.createElement("option");
+            option.value = tab.id;
+            option.innerHTML = `<i class="${tab.icon}"></i> ${tab.name}`;
+            navSelect.appendChild(option);
+        });
+        document.getElementById("navbarDropdownContainer").style.display = "block";
+        navSelect.onchange = (e) => switchTab(e.target.value);
+
+        if (availableTabs.length > 0) switchTab(availableTabs[0].id);
+
+        const adminOnly = ["addUserForm", "addErrorForm"];        adminOnly.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle("hidden", user.role !== "admin");
+        });
+
+        if (user.role === "admin") {
+            await Promise.all([
+                renderUsersList(),
+                renderLogs(),
+                renderCashierPermissions(),
+                renderErrorsList()
+            ]);
+        }
+
+        startAlgorithm();
+
+        if (user.role === "cashier") {
+            const perms = await getPermissions();
+            const userPerms = perms[user.username] || { show_algo: true };
+            const outputDiv = document.getElementById("output");
+            const copyBtn = document.getElementById("copyCodeBtn");
+            if (!userPerms.show_algo) {
+                outputDiv.style.display = "none";
+                copyBtn.style.display = "none";
+            }
+            if (userPerms.can_use_camera) initCamera();
+        } else {
+            if (document.getElementById("tabCamera")?.classList.contains("active")) {
+                initCamera();
+            }
+        }
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+        document.getElementById(tabId).classList.add("active");
+        const navSelect = document.getElementById("navSelect");
+        if (navSelect) navSelect.value = tabId;
+        if (tabId === "tabCamera" && currentUser?.role !== "admin") {
+            initCamera();
+        }
+    }
+
+    // ==================== إدارة المستخدمين ====================
+    async function renderUsersList() {
+        const users = await getUsers();
+        const container = document.getElementById("usersDiv");
+        if (!container) return;
+        if (users.length === 0) {
+            container.innerHTML = '<p style="text-align:center;color:var(--footer-color);">لا يوجد مستخدمين</p>';            return;
+        }
+        container.innerHTML = users.map(u => `
+            <div class="user-card">
+                <div>
+                    <strong><i class="fas fa-user-circle"></i> ${escapeHtml(u.username)}</strong><br>
+                    <small style="color:var(--footer-color);">
+                        ${u.role === 'admin' ? '👑 مدير' : u.role === 'cashier' ? '🛒 كاشير' : '👤 مستخدم'} 
+                        ${u.last_login ? `| آخر دخول: ${new Date(u.last_login).toLocaleString('ar-EG')}` : ''}
+                    </small>
+                </div>
+                ${u.role !== 'admin' ? 
+                    `<button class="small-btn" onclick="deleteUser('${escapeHtml(u.username)}')" 
+                     style="background:#e74c3c;color:white;">
+                        <i class="fas fa-trash"></i> حذف
+                    </button>` : 
+                    '<span style="color:var(--footer-color);font-size:0.8rem;"><i class="fas fa-lock"></i> أساسي</span>'
+                }
+            </div>
+        `).join("");
+    }
+
+    async function addUser() {
+        const name = document.getElementById("newUserName").value.trim();
+        const role = document.getElementById("newUserRole").value;
+        let pass = document.getElementById("newUserPass").value.trim();
+        if (!name) { showToast("⚠️ أدخل اسم المستخدم", "warning"); return; }
+        if (!pass) { pass = "1234"; showToast("💡 تم استخدام كلمة المرور الافتراضية: 1234", "info"); }
+        
+        const users = await getUsers();
+        if (users.find(u => u.username === name)) { 
+            showToast("⚠️ اسم المستخدم موجود مسبقاً", "warning"); 
+            return; 
+        }
+        
+        const newUser = await saveUser({
+            username: name,
+            password: pass,
+            role: role,
+            created_at: new Date().toISOString()
+        });
+        
+        if (newUser && role === "cashier") {
+            await savePermissions(name, { 
+                can_use_camera: false, 
+                show_algo: true,
+                can_view_logs: false,
+                can_manage_errors: false
+            });
+        }        
+        document.getElementById("newUserName").value = "";
+        document.getElementById("newUserPass").value = "";
+        await renderUsersList();
+        await renderCashierPermissions();
+        await addLog("➕ إضافة مستخدم", `تم إضافة ${name} (${role})`);
+        showToast(`✅ تم إضافة ${name} بنجاح`, "success");
+    }
+
+    window.deleteUser = async function(username) {
+        const users = await getUsers();
+        const target = users.find(u => u.username === username);
+        if (!target || target.role === "admin") { 
+            showToast("❌ لا يمكن حذف حساب المدير", "error"); 
+            return; 
+        }
+        if (!confirm(`⚠️ هل أنت متأكد من حذف "${username}" نهائياً؟`)) return;
+        
+        // حذف من جدول المستخدمين
+        await supabase.from('users').delete().eq('username', username);
+        // حذف الصلاحيات
+        await supabase.from('permissions').delete().eq('username', username);
+        
+        await renderUsersList();
+        await renderCashierPermissions();
+        await addLog("🗑️ حذف مستخدم", `تم حذف ${username}`);
+        if (currentUser && currentUser.username === username) logout();
+        showToast(`✅ تم حذف ${username}`, "success");
+    };
+
+    // ==================== صلاحيات الكاشير ====================
+    async function renderCashierPermissions() {
+        const users = await getUsers();
+        const cashiers = users.filter(u => u.role === "cashier");
+        const perms = await getPermissions();
+        const container = document.getElementById("cashiersList");
+        if (!container) return;
+        if (cashiers.length === 0) { 
+            container.innerHTML = "<p style='text-align:center;color:var(--footer-color);'>لا يوجد كاشير مسجل</p>"; 
+            return; 
+        }
+        container.innerHTML = cashiers.map(c => {
+            const p = perms[c.username] || { can_use_camera: false, show_algo: true };
+            return `
+                <div class="user-card" style="flex-direction:column;align-items:stretch;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <strong><i class="fas fa-user"></i> ${escapeHtml(c.username)}</strong>
+                        <span class="error-severity severity-low">🛒 كاشير</span>
+                    </div>
+                    <label style="color:var(--text-gold);cursor:pointer;display:flex;align-items:center;gap:8px;margin:0.3rem 0;">                        <input type="checkbox" id="cam_${c.username}" ${p.can_use_camera ? "checked" : ""} 
+                         onchange="updateCashierPerm('${c.username}', 'can_use_camera', this.checked)" 
+                         style="accent-color:#2ecc71;width:18px;height:18px;">
+                        <i class="fas fa-camera" style="color:#2ecc71;"></i> استخدام الكاميرا وتحليل الأخطاء
+                    </label>
+                    <label style="color:var(--text-gold);cursor:pointer;display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="algo_${c.username}" ${p.show_algo ? "checked" : ""} 
+                         onchange="updateCashierPerm('${c.username}', 'show_algo', this.checked)" 
+                         style="accent-color:#3498db;width:18px;height:18px;">
+                        <i class="fas fa-shield-alt" style="color:#3498db;"></i> إظهار رمز التحقق
+                    </label>
+                </div>
+            `;
+        }).join("");
+    }
+
+    window.updateCashierPerm = async function(username, perm, value) {
+        const perms = await getPermissions();
+        const current = perms[username] || { can_use_camera: false, show_algo: true };
+        current[perm] = value;
+        await savePermissions(username, current);
+        
+        const permLabel = perm === "can_use_camera" ? "الكاميرا والتحليل" : "إظهار الرمز";
+        await addLog("⚙️ تعديل صلاحيات", `${value ? "✅ منح" : "❌ سحب"} صلاحية "${permLabel}" للمستخدم ${username}`);
+        
+        if (currentUser && currentUser.username === username && currentUser.role === "cashier") {
+            showApp(currentUser);
+        }
+        showToast(`✅ تم تحديث صلاحيات ${username}`, "success");
+    };
+
+    // ==================== إدارة الأخطاء ====================
+    async function renderErrorsList() {
+        const errors = await getErrors();
+        const container = document.getElementById("errorsList");
+        if (!container) return;
+        if (errors.length === 0) { 
+            container.innerHTML = "<p style='text-align:center;color:var(--footer-color);'>لا توجد أخطاء مسجلة</p>"; 
+            return; 
+        }
+        container.innerHTML = errors.map(e => {
+            const severity = e.severity || 'medium';
+            const severityAr = severity === 'high' ? '🔴 عالي' : severity === 'medium' ? '🟡 متوسط' : '🟢 منخفض';
+            return `
+                <div class="error-card" onclick="copySolution('${escapeHtml(e.solution)}')">
+                    <div style="flex:1;">
+                        <span class="error-severity severity-${severity}">${severityAr}</span>
+                        <strong style="margin-right:8px;">${escapeHtml(e.problem)}</strong><br>
+                        <small style="color:var(--footer-color);">💡 ${escapeHtml(e.solution.substring(0,50))}${e.solution.length>50?'...':''}</small>
+                    </div>                    <button class="small-btn" onclick="event.stopPropagation();deleteError('${e.id}')" 
+                     style="background:#e74c3c;color:white;padding:0.4rem 0.8rem;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        }).join("");
+    }
+
+    async function addError() {
+        const problem = document.getElementById("errorProblem").value.trim();
+        const solution = document.getElementById("errorSolution").value.trim();
+        if (!problem || !solution) { 
+            showToast("⚠️ يرجى ملء جميع الحقول", "warning"); 
+            return; 
+        }        
+        const newId = Date.now().toString();
+        let severity = 'medium';
+        const p = problem.toLowerCase();
+        if (['fraud','declined','blocked','suspicious'].some(k => p.includes(k))) severity = 'high';
+        else if (['timeout','limit','expired'].some(k => p.includes(k))) severity = 'medium';
+        else severity = 'low';
+        
+        await supabase.from('errors').insert([{
+            id: newId,
+            problem,
+            solution,
+            severity,
+            created_at: new Date().toISOString()
+        }]);
+        
+        document.getElementById("errorProblem").value = "";
+        document.getElementById("errorSolution").value = "";
+        await renderErrorsList();
+        await addLog("➕ إضافة خطأ", `تم إضافة مشكلة: ${problem}`);
+        showToast("✅ تمت إضافة الخطأ بنجاح", "success");
+    }
+
+    window.deleteError = async function(id) {
+        if (!confirm("⚠️ هل تريد حذف هذا الخطأ؟")) return;
+        await supabase.from('errors').delete().eq('id', id);
+        await renderErrorsList();
+        await addLog("🗑️ حذف خطأ", "تم حذف مشكلة من القائمة");
+        showToast("✅ تم حذف الخطأ", "success");
+    };
+
+    window.copySolution = function(solution) {
+        navigator.clipboard.writeText(solution).then(() => {
+            showToast("✅ تم نسخ الحل للحافظة", "success");
+        }).catch(() => {            showToast("❌ فشل النسخ", "error");
+        });
+    };
+
+    // ==================== الكاميرا وتحليل الصور ====================
+    async function initCamera() {
+        try {
+            if (currentStream) {
+                currentStream.getTracks().forEach(t => t.stop());
+            }
+            const constraints = { 
+                video: { 
+                    facingMode: currentCamera,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                } 
+            };
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const video = document.getElementById("video");
+            if (video) {
+                video.srcObject = currentStream;
+                video.classList.remove("hidden");
+            }
+        } catch (err) {
+            console.error(err);
+            showToast("❌ لا يمكن الوصول للكاميرا، تأكد من منح الإذن", "error");
+        }
+    }
+
+    function switchCamera() {
+        currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
+        initCamera();
+        showToast(`🔄 تم التبديل للكاميرا ${currentCamera === 'environment' ? 'الخلفية' : 'الأمامية'}`, "info");
+    }
+
+    function capturePhoto() {
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        if (!video || !canvas) return;
+        const context = canvas.getContext("2d");
+        if (!video.videoWidth) {
+            showToast("⚠️ انتظر تشغيل الكاميرا أولاً", "warning");
+            return;
+        }
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imgData = canvas.toDataURL("image/png");
+        const img = document.getElementById("capturedImage");
+        if (img) {            img.src = imgData;
+            img.classList.remove("hidden");
+        }
+        const analysisArea = document.getElementById("analysisArea");
+        if (analysisArea) analysisArea.classList.remove("hidden");
+        addLog("📸 تصوير", `${currentUser.username} قام بتصوير مستند`);
+        const ocrStatus = document.getElementById("ocrStatus");
+        if (ocrStatus) {
+            ocrStatus.innerHTML = "<i class='fas fa-spinner fa-spin'></i> 🤖 جاري تحليل الصورة بالذكاء الاصطناعي...";
+        }
+        const resultDiv = document.getElementById("analysisResult");
+        if (resultDiv) resultDiv.classList.add("hidden");
+        preprocessImage(canvas).then(processedImage => {
+            analyzeWithTesseract(processedImage);
+        });
+    }
+
+    async function preprocessImage(canvas) {
+        return new Promise((resolve) => {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+                const enhanced = Math.min(255, Math.max(0, avg * 1.15 - 15));
+                data[i] = data[i+1] = data[i+2] = enhanced;
+            }
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL("image/png"));
+        });
+    }
+
+    async function analyzeWithTesseract(imageData) {
+        const progress = showProgress("🔍 جاري التعرف على النص...", 10);
+        try {
+            const result = await Tesseract.recognize(imageData, 'eng+ara', {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        const pct = Math.round(m.progress * 100);
+                        progress.update(`📝 التعرف على النص... ${pct}%`, 10 + pct * 0.7);
+                    }
+                }
+            });
+            progress.update("✅ التحليل اكتمل، جاري المطابقة...", 95);
+            const { text, confidence } = result.data;
+            console.log("📄 النص المستخرج:", text);
+            const ocrStatus = document.getElementById("ocrStatus");
+            if (ocrStatus) {
+                ocrStatus.innerHTML = `<i class='fas fa-check-circle' style='color:#2ecc71;'></i> ✅ تم التحليل (دقة: ${Math.round(confidence * 100)}%)`;
+            }            await analyzeTextWithAI(text);
+            progress.hide();
+        } catch (err) {
+            console.error("❌ خطأ في التحليل:", err);
+            const ocrStatus = document.getElementById("ocrStatus");
+            if (ocrStatus) {
+                ocrStatus.innerHTML = "<i class='fas fa-exclamation-triangle' style='color:#e74c3c;'></i> ⚠️ فشل التحليل";
+            }
+            progress.hide();
+            showToast("❌ حدث خطأ أثناء تحليل الصورة", "error");
+        }
+    }
+
+    async function analyzeTextWithAI(extractedText) {
+        const errors = await getErrors();
+        const resultDiv = document.getElementById("analysisResult");
+        if (!resultDiv) return;
+        let bestMatch = null;
+        let highestScore = 0;
+        for (let err of errors) {
+            const problem = err.problem.toLowerCase();
+            const text = extractedText.toLowerCase();
+            let score = 0;
+            if (text.includes(problem)) {
+                score = 100;
+            } else {
+                const keywords = problem.split(/\s+/).filter(w => w.length > 3);
+                if (keywords.length > 0) {
+                    const matches = keywords.filter(k => text.includes(k)).length;
+                    score = Math.round((matches / keywords.length) * 85);
+                }
+            }
+            if (score > highestScore && score >= 45) {
+                highestScore = score;
+                bestMatch = err;
+            }
+        }
+        resultDiv.className = "ai-result-box";
+        resultDiv.classList.remove("hidden");
+        if (bestMatch) {
+            const severity = bestMatch.severity || 'medium';
+            const severityAr = severity === 'high' ? '🔴 عالي' : severity === 'medium' ? '🟡 متوسط' : '🟢 منخفض';
+            resultDiv.innerHTML = `
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;flex-wrap:wrap;">
+                    <span class="error-severity severity-${severity}">${severityAr}</span>
+                    <strong style="color:var(--text-gold-bright);">
+                        <i class="fas fa-bullseye"></i> تطابق بنسبة ${Math.round(highestScore)}%
+                    </strong>
+                </div>
+                <div style="background:rgba(0,0,0,0.35);padding:1rem;border-radius:1rem;">                    <div style="margin-bottom:0.8rem;">
+                        <strong>📋 المشكلة:</strong><br>
+                        <span style="color:var(--text-gold-dark);font-size:1.05rem;">${escapeHtml(bestMatch.problem)}</span>
+                    </div>
+                    <div>
+                        <strong>💡 الحل المقترح:</strong><br>
+                        <span style="color:#55efc4;">${escapeHtml(bestMatch.solution)}</span>
+                    </div>
+                </div>
+                <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;">
+                    <button class="small-btn" onclick="copySolution('${escapeHtml(bestMatch.solution)}')">
+                        <i class="fas fa-copy"></i> نسخ الحل
+                    </button>
+                    <button class="small-btn" style="background:#9b59b6;color:white;" 
+                     onclick="showAddErrorForm('${escapeHtml(extractedText.substring(0,100))}')">
+                        <i class="fas fa-plus"></i> إضافة مشكلة جديدة
+                    </button>
+                </div>
+            `;
+            await addLog("🤖 تحليل ذكي", `تم التعرف على: ${bestMatch.problem} (دقة: ${Math.round(highestScore)}%)`);
+            showToast("✅ تم العثور على حل مناسب!", "success");
+        } else {
+            resultDiv.innerHTML = `
+                <div style="text-align:center;padding:1rem;">
+                    <i class="fas fa-robot" style="font-size:2.5rem;color:var(--text-gold-dark);margin-bottom:0.8rem;"></i>
+                    <p style="margin-bottom:0.5rem;">🤔 لم أجد حلًا في قاعدة البيانات</p>
+                    <small style="color:var(--footer-color);display:block;margin-bottom:1rem;">
+                        النص المستخرج: "${escapeHtml(extractedText.substring(0, 70))}${extractedText.length > 70 ? '...' : ''}"
+                    </small>
+                    <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;">
+                        <button class="small-btn" onclick="showAddErrorForm('${escapeHtml(extractedText.substring(0,100))}')">
+                            <i class="fas fa-plus"></i> إضافة كخطأ جديد
+                        </button>
+                        <button class="small-btn" style="background:#3498db;color:white;" onclick="retryOCR()">
+                            <i class="fas fa-redo"></i> إعادة التحليل
+                        </button>
+                    </div>
+                </div>`;
+            showToast("⚠️ لم يتم العثور على تطابق", "warning");
+        }
+    }
+
+    function retryOCR() {
+        const img = document.getElementById("capturedImage");
+        if (img?.src) {
+            const ocrStatus = document.getElementById("ocrStatus");
+            if (ocrStatus) {
+                ocrStatus.innerHTML = "<i class='fas fa-spinner fa-spin'></i> 🔄 جاري إعادة التحليل...";
+            }
+            analyzeWithTesseract(img.src);        }
+    }
+
+    window.showAddErrorForm = function(previewText) {
+        const problemInput = document.getElementById("errorProblem");
+        const solutionInput = document.getElementById("errorSolution");
+        const addForm = document.getElementById("addErrorForm");
+        if (problemInput) problemInput.value = previewText || "";
+        if (solutionInput) solutionInput.value = "";
+        switchTab("tabErrors");
+        if (addForm) addForm.classList.remove("hidden");
+        if (problemInput) problemInput.focus();
+        showToast("💡 املأ وصف المشكلة والحل ثم اضغط إضافة", "info");
+    };
+
+    async function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (file.size > 8 * 1024 * 1024) {
+            showToast("❌ حجم الصورة كبير جداً (الحد الأقصى 8 ميجابايت)", "error");
+            event.target.value = "";
+            return;
+        }
+        const progress = showProgress("📤 جاري تحميل الصورة...", 20);
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            progress.update("🎨 جاري معالجة الصورة...", 50);
+            const img = document.getElementById("capturedImage");
+            if (img) {
+                img.src = e.target.result;
+                img.classList.remove("hidden");
+            }
+            const analysisArea = document.getElementById("analysisArea");
+            if (analysisArea) analysisArea.classList.remove("hidden");
+            const ocrStatus = document.getElementById("ocrStatus");
+            if (ocrStatus) {
+                ocrStatus.innerHTML = "<i class='fas fa-spinner fa-spin'></i> 🤖 جاري تحليل الصورة بالذكاء الاصطناعي...";
+            }
+            const resultDiv = document.getElementById("analysisResult");
+            if (resultDiv) resultDiv.classList.add("hidden");
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const image = new Image();
+            image.onload = async () => {
+                const maxWidth = 1400;
+                const scale = Math.min(1, maxWidth / image.width);
+                canvas.width = image.width * scale;
+                canvas.height = image.height * scale;
+                ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+                progress.update("🔍 جاري التعرف على النص...", 75);                const processedImage = await preprocessImage(canvas);
+                progress.hide();
+                analyzeWithTesseract(processedImage);
+                addLog("📤 رفع صورة", `${currentUser.username} حلل صورة: ${file.name}`);
+            };
+            image.onerror = () => {
+                progress.hide();
+                showToast("❌ فشل تحميل الصورة", "error");
+            };
+            image.src = e.target.result;
+        };
+        reader.onerror = () => {
+            progress.hide();
+            showToast("❌ خطأ في قراءة الملف", "error");
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // ==================== الخوارزمية ونسخ الرمز ====================
+    function startAlgorithm() {
+        const d = new Date();
+        const day = String(d.getDate()).padStart(2,'0');
+        const month = String(d.getMonth()+1).padStart(2,'0');
+        const yearLast = String(d.getFullYear()).slice(-2);
+        const intermediate = yearLast + month + day;
+        let result = "";
+        for (let i = 0; i < intermediate.length; i++) {
+            const dig = parseInt(intermediate[i]);
+            result += (i === 3) ? dig : (dig + 1) % 10;
+        }
+        const outputEl = document.getElementById("output");
+        if (outputEl) {
+            outputEl.innerText = result;
+            outputEl.style.animation = 'none';
+            setTimeout(() => outputEl.style.animation = 'pulse-gold 0.5s ease', 10);
+        }
+    }
+
+    function copyCode() {
+        const code = document.getElementById("output").innerText;
+        if (code && code !== "----") {
+            navigator.clipboard.writeText(code).then(() => {
+                showToast("✅ تم نسخ الرمز: " + code, "success");
+                addLog("📋 نسخ رمز", `تم نسخ الرمز بواسطة ${currentUser?.username}`);
+            }).catch(() => {
+                showToast("❌ فشل نسخ الرمز", "error");
+            });
+        } else {
+            showToast("⚠️ لا يوجد رمز للنسخ", "warning");
+        }    }
+
+    // ==================== سجل العمليات ====================
+    async function renderLogs() {
+        const logs = await getLogs();
+        const container = document.getElementById("logsDiv");
+        if (!container) return;
+        if (logs.length === 0) { 
+            container.innerHTML = "<div style='text-align:center;color:var(--footer-color);'>لا توجد سجلات</div>"; 
+            return; 
+        }
+        container.innerHTML = logs.map(l => {
+            const icon = l.action.includes('دخول') ? '✅' : 
+                        l.action.includes('حذف') ? '🗑️' : 
+                        l.action.includes('إضافة') ? '➕' : '📝';
+            return `
+                <div class="log-entry">
+                    <span style="color:var(--footer-color);font-size:0.85rem;">${new Date(l.created_at).toLocaleString('ar-EG')}</span>
+                    <span><strong>${icon} ${l.action}</strong><br><small style="color:var(--footer-color);">${l.details}</small></span>
+                </div>
+            `;
+        }).join("");
+    }
+
+    // ==================== تغيير كلمة المرور ====================
+    async function changePassword() {
+        const old = document.getElementById("oldPass").value;
+        const newp = document.getElementById("newPass").value;
+        if (!old || !newp) { 
+            showToast("⚠️ يرجى ملء جميع الحقول", "warning"); 
+            return; 
+        }
+        if (newp.length < 4) { 
+            showToast("⚠️ كلمة المرور الجديدة قصيرة جداً (4 أحرف على الأقل)", "warning"); 
+            return; 
+        }
+        const users = await getUsers();
+        const user = users.find(u => u.username === currentUser.username);
+        if (!user || user.password !== old) { 
+            showToast("❌ كلمة المرور الحالية غير صحيحة", "error"); 
+            return; 
+        }
+        
+        await saveUser({ username: currentUser.username, password: newp }, true);
+        currentUser.password = newp;
+        sessionStorage.setItem("currentUser", JSON.stringify(currentUser));
+        
+        document.getElementById("oldPass").value = "";
+        document.getElementById("newPass").value = "";
+        await addLog("🔑 تغيير كلمة مرور", `${currentUser.username} قام بتحديث كلمة المرور`);        showToast("✅ تم تغيير كلمة المرور بنجاح", "success");
+    }
+
+    // ==================== الخروج ====================
+    function logout() { 
+        if (currentStream) {
+            currentStream.getTracks().forEach(t => t.stop());
+            currentStream = null;
+        }
+        sessionStorage.clear(); 
+        showToast("👋 تم تسجيل الخروج بنجاح", "info", 2000);
+        setTimeout(() => location.reload(), 2200);
+    }
+
+    // ==================== السمة/الوضع ====================
+    function initTheme() {
+        const saved = localStorage.getItem(THEME_KEY);
+        if (saved === "dark") document.body.classList.add("dark");
+        document.querySelectorAll(".theme-toggle").forEach(btn => {
+            updateThemeBtn(btn);
+            btn.onclick = () => { 
+                document.body.classList.toggle("dark"); 
+                localStorage.setItem(THEME_KEY, document.body.classList.contains("dark") ? "dark" : "light");
+                document.querySelectorAll(".theme-toggle").forEach(updateThemeBtn);
+            };
+        });
+    }
+    function updateThemeBtn(btn) {
+        const isDark = document.body.classList.contains("dark");
+        btn.innerHTML = isDark ? '<i class="fas fa-sun"></i> فاتح' : '<i class="fas fa-moon"></i> داكن';
+    }
+
+    // ==================== دوال مساعدة ====================
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>"']/g, m => ({
+            '&': '&', '<': '<', '>': '>', '"': '"', "'": '''
+        })[m]);
+    }
+
+    // ==================== ربط الدوال العامة ====================
+    window.login = login;
+    window.logout = logout;
+    window.copyCode = copyCode;
+    window.changePassword = changePassword;
+    window.clearLogs = clearLogs;
+    window.addUser = addUser;
+    window.addError = addError;
+    window.switchCamera = switchCamera;
+    window.capturePhoto = capturePhoto;    window.handleImageUpload = handleImageUpload;
+    window.retryOCR = retryOCR;
+
+    // ==================== بدء التطبيق ====================
+    window.addEventListener("DOMContentLoaded", async () => {
+        initTheme();
+        
+        // اختبار الاتصال أولاً
+        const connStatus = await testSupabaseConnection();
+        
+        // إذا متصل، نهيئ البيانات
+        if (connStatus === 'connected' || connStatus === 'needs_setup') {
+            isSupabaseReady = (connStatus === 'connected');
+            if (isSupabaseReady) {
+                await initSupabaseData();
+            }
+        }
+        
+        // التحقق من جلسة محفوظة
+        const stored = sessionStorage.getItem("currentUser");
+        if (stored) { 
+            try { 
+                const user = JSON.parse(stored);
+                showApp(user);
+                showToast(`🎉 مرحباً بعودتك، ${user.username}!`, "success");
+            } catch(e) { 
+                sessionStorage.clear(); 
+            } 
+        }
+    });
+
+    // تحديث الرمز كل دقيقة
+    setInterval(() => {
+        if (currentUser && document.getElementById("tabAlgorithm")?.classList.contains("active")) {
+            startAlgorithm();
+        }
+    }, 60000);
+</script>
+</body>
+</html>
